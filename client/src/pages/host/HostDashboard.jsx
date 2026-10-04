@@ -7,13 +7,19 @@ import { formatDate, formatINR } from '../../utils/format.js';
 export default function HostDashboard() {
   const [listings, setListings] = useState(null);
   const [bookings, setBookings] = useState([]);
+  const [stats, setStats] = useState(null);
   const [error, setError] = useState('');
 
   const load = () => {
-    Promise.all([api.get('/listings/mine'), api.get('/bookings/host')])
-      .then(([l, b]) => {
+    Promise.all([
+      api.get('/listings/mine'),
+      api.get('/bookings/host'),
+      api.get('/bookings/host/stats'),
+    ])
+      .then(([l, b, s]) => {
         setListings(l.data);
         setBookings(b.data);
+        setStats(s.data);
       })
       .catch((err) => setError(getErrorMessage(err)));
   };
@@ -36,13 +42,33 @@ export default function HostDashboard() {
   if (error) return <p className="error">{error}</p>;
   if (!listings) return <Loader />;
 
-  // TODO: earnings summary cards (total earnings, upcoming check-ins, occupancy).
   return (
     <section>
       <div className="row-between">
         <h1>Host Dashboard</h1>
         <Link to="/host/listings/new" className="btn">+ New listing</Link>
       </div>
+
+      {stats && (
+        <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', margin: '20px 0' }}>
+          <div className="card" style={{ padding: '16px' }}>
+            <span className="muted small">Total Earnings</span>
+            <h2 style={{ margin: '8px 0 0' }}>{formatINR(stats.totalEarnings)}</h2>
+          </div>
+          <div className="card" style={{ padding: '16px' }}>
+            <span className="muted small">Upcoming Check-ins (7d)</span>
+            <h2 style={{ margin: '8px 0 0' }}>{stats.upcomingCheckIns}</h2>
+          </div>
+          <div className="card" style={{ padding: '16px' }}>
+            <span className="muted small">Pending Requests</span>
+            <h2 style={{ margin: '8px 0 0' }}>{stats.pendingRequests}</h2>
+          </div>
+          <div className="card" style={{ padding: '16px' }}>
+            <span className="muted small">Average Rating</span>
+            <h2 style={{ margin: '8px 0 0' }}>{stats.avgRating > 0 ? `★ ${stats.avgRating}` : 'New'}</h2>
+          </div>
+        </div>
+      )}
 
       <h2>Booking requests</h2>
       {bookings.length === 0 && <p className="muted">No bookings yet.</p>}

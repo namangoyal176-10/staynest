@@ -108,3 +108,41 @@ export const updateBookingStatus = asyncHandler(async (req, res) => {
   await booking.save();
   res.json(booking);
 });
+
+// GET /api/bookings/host/stats (host earnings and summary stats)
+export const getHostStats = asyncHandler(async (req, res) => {
+  const myListings = await Listing.find({ host: req.user._id });
+  const listingIds = myListings.map((l) => l._id);
+
+  const now = new Date();
+  const next7Days = new Date(now.getTime() + 7 * MS_PER_DAY);
+
+  const [earningsResult, upcomingCount, pendingCount] = await Promise.all([
+    Booking.aggregate([
+      { $match: { listing: { $in: listingIds }, status: 'completed' } },
+      { $group: { _id: null, totalEarnings: { $sum: '$totalPrice' } } },
+    ]),
+    Booking.countDocuments({
+      listing: { $in: listingIds },
+      status: { $in: ['confirmed', 'pending'] },
+      checkIn: { $gte: now, $lte: next7Days },
+    }),
+    Booking.countDocuments({
+      listing: { $in: listingIds },
+      status: 'pending',
+    }),
+  ]);
+
+  const totalEarnings = earningsResult[0]?.totalEarnings || 0;
+  const ratedListings = myListings.filter((l) => l.reviewCount > 0);
+  const avgRating = ratedListings.length > 0
+    ? Number((ratedListings.reduce((sum, l) => sum + l.avgRating, 0) / ratedListings.length).toFixed(1))
+    : 0;
+
+  res.json({
+    totalEarnings,
+    upcomingCheckIns: upcomingCount,
+    pendingRequests: pendingCount,
+    avgRating,
+  });
+});
